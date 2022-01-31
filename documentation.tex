@@ -1,0 +1,685 @@
+\documentclass{article}
+
+
+\usepackage{polski}
+% skomentowana dla MAC wersja {inputenc}
+%\usepackage[utf8]{inputenc}
+ \usepackage[T1]{fontenc}
+\usepackage[cp1250]{inputenc}
+%\usepackage{polski}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage{amsmath}
+\usepackage{Sweave}
+\usepackage{enumerate}
+\usepackage{hyperref}
+
+\title{Analiza parametrów skoków w zawodach skoków narciarskich}
+\author{\textbf{406949, Dorota Meszka}, Œroda $12^{50}$\\ 
+\textit{AGH, Wydzia³‚ Informatyki Elektroniki i Telekomunikacji}\\
+\textit{Rachunek prawdopodobieñstwa i statystyka 2020/2021}}
+\date{Kraków, \today}
+
+
+\begin{document}
+\input{Szablon-concordance}
+\maketitle
+
+\textit{Ja, ni¿ej podpisany(na) w³asnorêcznym podpisem deklarujê, ¿e przygotowa³em(³am) przedstawiony do oceny projekt samodzielnie i ¿adna jego czêœæ nie jest kopi¹ pracy innej osoby.}
+\begin{flushright}
+{............................................}
+\end{flushright}
+
+
+\section{Streszczenie raportu}
+Raport powsta³‚ w oparciu o analizê danych dotycz¹cych statystyk poszczególych skoków w konkursach skoków narciarskich mê¿czyzn na skoczniach du¿ych w latach 2009-2022.
+
+\section{Opis danych}
+Dane do projektu pochodz¹ ze strony \href{https://www.kaggle.com/wrotki8778/ski-jumping-results-database-2009now}{\texttt{Kaggle}}. S¹ one przedstawione w pliku .csv (plik all\_results). 
+Dane sk³adaj¹ siê z 288012 rekorów, ka¿dy z nich zawiera 20 cech. Ka¿dy rekord opisuje jeden skok, cechy oznaczaj¹ kolejno:
+\begin{itemize}
+  \item \textbf{points} - ³¹czna punktacja za skok (\textit{numeryczna})
+  \item \textbf{speed} - szybkoœæ zawodnika na progu (\textit{numeryczna})
+  \item \textbf{dist} - odleg³oœæ zawodnika (\textit{numeryczna})
+  \item \textbf{dist\_points} - punkty za odleg³oœæ (\textit{numeryczna})
+  \item \textbf{note\_1} - pierwsza nota za styl (\textit{numeryczna})
+  \item \textbf{note\_2} - druga nota za styl (\textit{numeryczna})
+  \item \textbf{note\_3} - trzecia nota za styl  (\textit{numeryczna})
+  \item \textbf{note\_4} - czwarta nota za styl  (\textit{numeryczna})
+  \item \textbf{note\_5} - pi¹ta nota za styl  (\textit{numeryczna})
+  \item \textbf{note\_points} - ³¹czna nota za styl (\textit{numeryczna})
+  \item \textbf{gate} - numer belki startowej (\textit{numeryczna})
+  \item \textbf{id} - ID konkursu (\textit{kategoryczna})
+  \item \textbf{loc} - pozycja zawodnika (w punktacji koñcowej serii/konkursu) (\textit{numeryczna})
+  \item \textbf{bib} - numer startowy zawodnika (\textit{kategoryczna})
+  \item \textbf{round} - okreœlenie rundy (\textit{kategoryczna})
+  \item \textbf{wind} - prêdkoœæ wiatru (w m/s) (\textit{numeryczna})
+  \item \textbf{wind\_comp} - wartoœæ rekompensaty za wiatr (\textit{numeryczna})
+  \item \textbf{gate\_points} - punkty za zmianê rozbiegu (\textit{numeryczna})
+  \item \textbf{Unnamed..0} - numer skoku (wg. wewnêtrznej numeracji zawodów) (\textit{numeryczna})
+  \item \textbf{codex} - FIS ID zawodnika (\textit{numeryczna})
+\end{itemize}
+
+ 
+Dane, z których korzystam, s¹ w sporej czêœci niekompletne:
+\begin{Schunk}
+\begin{Sinput}
+> colSums(is.na(results))
+\end{Sinput}
+\begin{Soutput}
+     points       speed        dist dist_points      note_1      note_2 
+     133729           4           4       28592      133729      133729 
+     note_3      note_4      note_5 note_points        gate          id 
+     133729      133729      133729      133729       28284           0 
+        loc         bib       round        wind   wind_comp gate_points 
+      36691           0           0       58752       58752       68113 
+ Unnamed..0       codex 
+     223364         757 
+\end{Soutput}
+\end{Schunk}
+dlatego przed analiz¹ przyst¹piê do ich czyszczenia.
+
+\section{Czyszczenie danych}
+Ze wzglêdu na obszerny rozmiar mojej bazy danych (prawie 300 tysiêcy pozycji), usuniêcie nawet sporej czêœci danych zostawia wystarczaj¹co du¿¹ bazê, dlatego decydujê siê na nastêpuj¹ce kroki:
+\begin{enumerate}
+  \item Usuniêcie kolumny \textit{Unnamed..0} - znaczna czêœæ jej komórek ma wartoœci nieznane a te, które nieznane nie s¹, i tak s¹ doœæ bezu¿yteczne - numerowanie skoków w konkursie nie odbywa siê bowiem na podstawie kolejnoœci wykonanych skoków, a wed³ug punktacji koñcowej, co wydaje mi siê byæ nielogiczne
+  \item Usuniêcie rzêdów z pozosta³ych kolumn z wartoœciami nieznanymi - co prawda mo¿naby próbowaæ wype³niæ te dane wartoœciami œrednimi, jednak musimy braæ pod uwagê, ¿e ka¿de zawody/skocznia cechuj¹ siê odpowiednimi parametrami i coœ takiego mog³oby doprowadziæ do uzyskania danych, które nie maj¹ logicznego sensu (np. wysoki numer belki startowej której na skoczni mo¿e nie byæ)
+  \item Usuniêcie rzêdów, dla których wartoœæ cechy \emph{speed }wynosi 0 - tego typu anomalia mo¿e wynikaæ jedynie z b³êdów pomiarowych i rozs¹dnym wydaje siê pominiêcie jej w analizie statystycznej.
+\end{enumerate} 
+
+Czyszczenie danych wykonujê za pomoc¹ funkcji:
+\begin{Schunk}
+\begin{Sinput}
+> results = subset(results, select =-c(Unnamed..0))
+> row.has.na <- apply(results, 1, function(x){any(is.na(x))})
+> results <- results[!row.has.na,]
+> results <- results[!(results$speed == 0),]
+\end{Sinput}
+\end{Schunk}
+
+Innym problemem, który utrudnia zaobserwowanie korelacji pomiêdzy danymi jest wspólne zestawienie wyników ze skoczni normalnych, du¿ych oraz mamucich, oraz zawodów rozgrywanych dla p³ci mêskiej i ¿eñskiej. Aby przefiltrowaæ odpowiednio te dane, korzystam z danych z pliku \emph{all\_comps} (zapisanych jako \emph{competitions}) i wprowadzam za³o¿enia, które eliminuj¹ te problemy:
+
+\begin{Schunk}
+\begin{Sinput}
+> competitions <- competitions[!(competitions$gender == "Women" | 
++     competitions$hill_size_y < 120 | competitions$hill_size_y > 
++     150), ]
+> results <- results[results$id %in% competitions$id, ]
+\end{Sinput}
+\end{Schunk}
+
+Dane prezentuj¹ siê teraz nastêpuj¹co:
+\begin{Schunk}
+\begin{Sinput}
+> summary(results)
+\end{Sinput}
+\begin{Soutput}
+     points          speed            dist        dist_points     
+ Min.   :  0.0   Min.   :82.30   Min.   : 20.0   Min.   :-120.00  
+ 1st Qu.: 97.6   1st Qu.:89.00   1st Qu.:116.0   1st Qu.:  49.20  
+ Median :112.2   Median :90.60   Median :123.0   Median :  60.90  
+ Mean   :109.1   Mean   :90.55   Mean   :121.4   Mean   :  58.19  
+ 3rd Qu.:123.9   3rd Qu.:92.00   3rd Qu.:128.5   3rd Qu.:  69.90  
+ Max.   :172.8   Max.   :98.90   Max.   :152.0   Max.   : 114.00  
+     note_1         note_2         note_3         note_4          note_5    
+ Min.   : 3.0   Min.   : 3.0   Min.   : 3.0   Min.   : 3.00   Min.   : 3.0  
+ 1st Qu.:17.0   1st Qu.:17.0   1st Qu.:17.0   1st Qu.:17.00   1st Qu.:17.0  
+ Median :17.5   Median :17.5   Median :17.5   Median :17.50   Median :17.5  
+ Mean   :17.3   Mean   :17.3   Mean   :17.3   Mean   :17.29   Mean   :17.3  
+ 3rd Qu.:18.0   3rd Qu.:18.0   3rd Qu.:18.0   3rd Qu.:18.00   3rd Qu.:18.0  
+ Max.   :20.0   Max.   :20.0   Max.   :20.0   Max.   :20.00   Max.   :20.0  
+  note_points         gate            id                 loc    
+ Min.   : 9.00   Min.   : 0.00   Length:47213       Min.   : 1  
+ 1st Qu.:50.50   1st Qu.:10.00   Class :character   1st Qu.: 8  
+ Median :52.50   Median :14.00   Mode  :character   Median :19  
+ Mean   :51.92   Mean   :14.01                      Mean   :21  
+ 3rd Qu.:54.00   3rd Qu.:18.00                      3rd Qu.:30  
+ Max.   :60.00   Max.   :37.00                      Max.   :86  
+     bib               round                wind           wind_comp      
+ Length:47213       Length:47213       Min.   :-3.4400   Min.   :-49.700  
+ Class :character   Class :character   1st Qu.:-0.3500   1st Qu.: -6.700  
+ Mode  :character   Mode  :character   Median : 0.1000   Median : -1.000  
+                                       Mean   : 0.1686   Mean   : -1.312  
+                                       3rd Qu.: 0.6600   3rd Qu.:  4.100  
+                                       Max.   : 4.8600   Max.   : 43.500  
+  gate_points           codex       
+ Min.   :-33.2000   Min.   :  1905  
+ 1st Qu.:  0.0000   1st Qu.:  4664  
+ Median :  0.0000   Median :  5564  
+ Mean   :  0.2631   Mean   :  5555  
+ 3rd Qu.:  0.0000   3rd Qu.:  6551  
+ Max.   : 48.2000   Max.   :219775  
+\end{Soutput}
+\begin{Sinput}
+> dim(results)
+\end{Sinput}
+\begin{Soutput}
+[1] 47213    19
+\end{Soutput}
+\end{Schunk}
+
+\section{Analiza danych}
+
+Analizie danych nie poddajê cech, które maj¹ wartoœci kategoryczne: \emph{bib, round, id}. Cechy o wartoœciach numerycznych \emph{codex} oraz \emph{loc} równie¿ s¹ pomijane przeze mnie w analizie - \emph{codex} stanowi rodzaj identyfikatora, zatem jego wartoœæ jest losowa, a \emph{loc} jest wielokrotnoœci¹ przedzia³ów 1-50, co jest nieszczególnie interesuj¹cym zbiorem danych do analizy.
+
+Cechy \emph{note\_1, note\_2, note\_3, note\_4 }oraz\emph{ note\_5} grupujê ze sob¹ w now¹ cechê, okreœlon¹ przez \emph{s\_notes\_data} - decydujê siê na tego typu uproszczenie ze wzglêdu na losowe przypisanie tych danych do konkretnych cech - sêdziowie nie s¹ stali, zatem bardziej interesuj¹ nas pojedyncze noty jako ogó³, ani¿eli ich pogrupowanie.
+
+\subsection{Cecha \emph{points}}
+
+\includegraphics{Szablon-points}
+\begin{Schunk}
+\begin{Soutput}
+  Cecha Minimum Maksimum  Œrednia Wariancja Odch._stand.
+ points       0    172.8 109.0661  476.2582     21.82334
+\end{Soutput}
+\begin{Soutput}
+  Cecha  Skoœnoœæ  Kurtoza Kw_pierwszy Mediana Kw_trzeci
+ points -1.001832 4.890825        97.6   112.2     123.9
+\end{Soutput}
+\begin{Soutput}
+  Cecha CI_mean_start CI_mean_end CI_var_start CI_var_end
+ points      108.8692    109.2629     470.2406   482.3925
+\end{Soutput}
+\end{Schunk}
+
+Wartoœci znajduj¹ siê w przedziale od 0 do 172.8, ich œrednia wynosi 109.0661, wariancja 476.2582, a odchylenie standardowe 21.82334.
+Skoœnoœæ przyjmuje wartoœæ ujemn¹, rozk³ad ten jest wiêc lewostronnie skoœny.
+Kurtoza przyjmuje wartoœæ >3 (kurtoza rozk³adu normalnego), zatem uk³ad jest leptokurtyczny.
+
+
+\includegraphics{Szablon-points_qq}
+\begin{Schunk}
+\begin{Soutput}
+	Anderson-Darling normality test
+
+data:  results$points
+A = 468.97, p-value < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Wykres QQ i test Andersona-Darlinga wskazuj¹, ¿e rozk³ad cechy \emph{points} nie jest rozk³adem normalnym.
+
+
+
+\subsection{Cecha \emph{speed}}
+
+\includegraphics{Szablon-speed}
+\begin{Schunk}
+\begin{Soutput}
+ Cecha Minimum Maksimum  Œrednia Wariancja Odch._stand.
+ speed    82.3     98.9 90.55327  4.643792     2.154946
+\end{Soutput}
+\begin{Soutput}
+ Cecha    Skoœnoœæ  Kurtoza Kw_pierwszy Mediana Kw_trzeci
+ speed -0.04902606 2.802782          89    90.6        92
+\end{Soutput}
+\begin{Soutput}
+ Cecha CI_mean_start CI_mean_end CI_var_start CI_var_end
+ speed      90.53383    90.57271     4.585117   4.703605
+\end{Soutput}
+\end{Schunk}
+
+Cecha przyjmuje wartoœci pomiêdzy 82.3 a 98.9, œrednia wynosi 90.55327, wariancja 4.643792, a odchylenie standardowe 2.154946.
+Skoœnoœæ przyjmuje wartoœæ ujemn¹, rozk³ad ten jest wiêc lewostronnie skoœny.
+Kurtoza przyjmuje wartoœæ < 3, zatem uk³ad jest platykurtyczny.
+
+
+\includegraphics{Szablon-speed_qq}
+\begin{Schunk}
+\begin{Soutput}
+	Anderson-Darling normality test
+
+data:  results$speed
+A = 23.837, p-value < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+
+Mimo kurtozy o wartoœci zbli¿onej do wartoœci kurtozy rozk³adu normalnego oraz dzwonowego kszta³tu histogramu, wykres QQ i test Andersona-Darlinga wskazuj¹, ¿e rozk³ad cechy \emph{speed} nie jest rozk³adem normalnym.
+
+
+
+\subsection{Cecha \emph{dist}}
+
+\includegraphics{Szablon-dist}
+\begin{Schunk}
+\begin{Soutput}
+ Cecha Minimum Maksimum  Œrednia Wariancja Odch._stand.
+  dist      20      152 121.4144  112.3413     10.59912
+\end{Soutput}
+\begin{Soutput}
+ Cecha   Skoœnoœæ  Kurtoza Kw_pierwszy Mediana Kw_trzeci
+  dist -0.9794381 5.042723         116     123     128.5
+\end{Soutput}
+\begin{Soutput}
+ Cecha CI_mean_start CI_mean_end CI_var_start CI_var_end
+  dist      121.3187      121.51     110.9218   113.7883
+\end{Soutput}
+\end{Schunk}
+
+Wartoœci zawieraj¹ siê pomiêdzy 20 a 152 [m], œrednia wartoœæ wynosi 121.4144 [m], wariancja 112.3413 [m], a odchylenie standardowe 10.59912 [m].
+Skoœnoœæ przyjmuje wartoœæ ujemn¹, z czego wynika, ¿e rozk³ad ten jest lewostronnie skoœny.
+Kurtoza przyjmuje wartoœæ > 3, zatem uk³ad jest leptokurtyczny.
+
+\includegraphics{Szablon-dist_qq}
+\begin{Schunk}
+\begin{Soutput}
+	Anderson-Darling normality test
+
+data:  results$dist
+A = 448.19, p-value < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Wykres QQ i test Andersona-Darlinga wskazuj¹, ¿e rozk³ad cechy \emph{dist} nie jest rozk³adem normalnym.
+
+
+
+\subsection{Cecha \emph{dist\_points}}
+
+\includegraphics{Szablon-dist_points}
+\begin{Schunk}
+\begin{Soutput}
+     Zmienna Minimum Maksimum  Œrednia Wariancja Odch._stand.
+ dist_points    -120      114 58.18943  323.4025      17.9834
+\end{Soutput}
+\begin{Soutput}
+     Zmienna  Skoœnoœæ Kurtoza Kw_pierwszy Mediana Kw_trzeci
+ dist_points -1.045896 5.32277        49.2    60.9      69.9
+\end{Soutput}
+\begin{Soutput}
+       Cecha CI_mean_start CI_mean_end CI_var_start CI_var_end
+ dist_points      58.02721    58.35165     319.3163    327.568
+\end{Soutput}
+\end{Schunk}
+Cecha przybiera wartoœci miêdzy -120 a 114, œrednia wartoœæ wynosi 58.18943, wariancja 323.4025, a odchylenie standardowe 17.9834.
+Skoœnoœæ przyjmuje wartoœæ ujemn¹, z czego wynika, ¿e rozk³ad ten jest lewostronnie skoœny.
+Kurtoza > 3, zatem uk³ad jest leptokurtyczny.
+
+
+\includegraphics{Szablon-dist_points_qq}
+\begin{Schunk}
+\begin{Soutput}
+	Anderson-Darling normality test
+
+data:  results$dist_points
+A = 503.43, p-value < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Wykres QQ i test Andersona-Darlinga wskazuj¹, ¿e rozk³ad cechy \emph{dist\_points} nie jest rozk³adem normalnym.
+
+
+\subsection{Cechy \emph{note\_1..5}}
+
+\includegraphics{Szablon-values}
+\begin{Schunk}
+\begin{Soutput}
+     Cechy Minimum Maksimum  Œrednia Wariancja Odch._stand.
+ note_1..5       3       20 17.29987  1.155248     1.074825
+\end{Soutput}
+\begin{Soutput}
+     Cechy Skoœnoœæ  Kurtoza Kw_pierwszy Mediana Kw_trzeci
+ note_1..5 -1.88929 14.18501          17    17.5        18
+\end{Soutput}
+\begin{Soutput}
+     Cechy CI_mean_start CI_mean_end CI_var_start CI_var_end
+ note_1..5      17.29553     17.3042     1.148686   1.161867
+\end{Soutput}
+\end{Schunk}
+Wartoœci not zawieraj¹ siê miêdzy 3 a 20 (mo¿na zaobserwowaæ zgodnoœæ z regu³ami ocen sêdziowskich), œrednia wartoœæ wynosi 17.29987, wariancja 1.155248, a odchylenie standardowe 1.074825.
+Skoœnoœæ < 0, z czego wynika, ¿e rozk³ad ten jest lewostronnie skoœny.
+Kurtoza przyjmuje wartoœæ > 3, zatem uk³ad jest leptokurtyczny.
+
+
+\includegraphics{Szablon-values_qq}
+\begin{Schunk}
+\begin{Soutput}
+	Anderson-Darling normality test
+
+data:  s_notes_data$values
+A = 5019.7, p-value < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Wykres QQ i test Andersona-Darlinga wskazuj¹, ¿e rozk³ad cech \emph{note\_1..5} nie jest rozk³adem normalnym.
+
+
+\subsection{Cecha \emph{note\_points}}
+
+\includegraphics{Szablon-note_points}
+\begin{Schunk}
+\begin{Soutput}
+       Cecha Minimum Maksimum  Œrednia Wariancja Odch._stand.
+ note_points       9       60 51.91537  9.580946      3.09531
+\end{Soutput}
+\begin{Soutput}
+       Cecha Skoœnoœæ  Kurtoza Kw_pierwszy Mediana Kw_trzeci
+ note_points -2.04036 15.70238        50.5    52.5        54
+\end{Soutput}
+\begin{Soutput}
+       Cecha CI_mean_start CI_mean_end CI_var_start CI_var_end
+ note_points      51.88745    51.94329      9.45989   9.704351
+\end{Soutput}
+\end{Schunk}
+Wartoœci sumy not zawieraj¹ siê miêdzy 9 a 60 (kolejna zgodnoœæ z regu³ami oceniania FIS), œrednia wartoœæ wynosi 51.91537, wariancja 9.580946, a odchylenie standardowe 3.09531.
+Skoœnoœæ przyjmuje wartoœæ ujemn¹, z czego wynika, ¿e rozk³ad ten jest lewostronnie skoœny.
+Kurtoza przyjmuje wartoœæ > 3, zatem uk³ad jest leptokurtyczny.
+
+
+\includegraphics{Szablon-note_points_qq}
+\begin{Schunk}
+\begin{Soutput}
+	Anderson-Darling normality test
+
+data:  results$note_points
+A = 674.2, p-value < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Wykres QQ i test Andersona-Darlinga wskazuj¹, ¿e rozk³ad cechy \emph{note\_points} nie jest rozk³adem normalnym.
+
+
+
+\subsection{Cecha \emph{gate}}
+
+\includegraphics{Szablon-gate}
+\begin{Schunk}
+\begin{Soutput}
+ Cecha Minimum Maksimum  Œrednia Wariancja Odch._stand.
+  gate       0       37 14.01133   28.1666     5.307221
+\end{Soutput}
+\begin{Soutput}
+ Cecha  Skoœnoœæ  Kurtoza Kw_pierwszy Mediana Kw_trzeci
+  gate 0.2391563 3.219724          10      14        18
+\end{Soutput}
+\begin{Soutput}
+ Cecha CI_mean_start CI_mean_end CI_var_start CI_var_end
+  gate      13.96346    14.05921     27.81071   28.52939
+\end{Soutput}
+\end{Schunk}
+Cecha posiada wartoœci zawieraj¹ce siê miêdzy 0 a 37, œrednia wartoœæ wynosi  14.01133, wariancja 28.1666, a odchylenie standardowe 5.307221.
+Skoœnoœæ przyjmuje wartoœæ dodatni¹, z czego wynika, ¿e rozk³ad ten jest prawostronnie skoœny.
+Kurtoza przyjmuje wartoœæ > 3, zatem uk³ad jest leptokurtyczny.
+
+
+\includegraphics{Szablon-gate_qq}
+\begin{Schunk}
+\begin{Soutput}
+	Anderson-Darling normality test
+
+data:  results$gate
+A = 103.81, p-value < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Mimo kurtozy o wartoœci zbli¿onej do wartoœci kurtozy rozk³adu normalnego oraz dzwonowego kszta³tu histogramu, wykres QQ i test Andersona-Darlinga wskazuj¹, ¿e rozk³ad cechy \emph{gate} nie jest rozk³adem normalnym.
+
+
+
+\subsection{Cecha \emph{wind}}
+
+\includegraphics{Szablon-wind}
+\begin{Schunk}
+\begin{Soutput}
+ Cecha Minimum Maksimum   Œrednia Wariancja Odch._stand.
+  wind   -3.44     4.86 0.1686504  0.667926    0.8172674
+\end{Soutput}
+\begin{Soutput}
+ Cecha  Skoœnoœæ  Kurtoza Kw_pierwszy Mediana Kw_trzeci
+  wind 0.2942379 3.881884       -0.35     0.1      0.66
+\end{Soutput}
+\begin{Soutput}
+ Cecha CI_mean_start CI_mean_end CI_var_start CI_var_end
+  wind     0.1612782   0.1760225    0.6594868  0.6765291
+\end{Soutput}
+\end{Schunk}
+Cecha posiada wartoœci zawieraj¹ce siê miêdzy -3.44 a 4.86 [m/s], œrednia wartoœæ wynosi 0.1686504 [m/s], wariancja 0.667926 [m/s], a odchylenie standardowe 0.8172674 [m/s].
+Skoœnoœæ przyjmuje wartoœæ dodatni¹, z czego wynika, ¿e rozk³ad ten jest prawostronnie skoœny.
+Kurtoza przyjmuje wartoœæ > 3, zatem uk³ad jest leptokurtyczny.
+
+
+\includegraphics{Szablon-wind_qq}
+\begin{Schunk}
+\begin{Soutput}
+	Anderson-Darling normality test
+
+data:  results$wind
+A = 142.82, p-value < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Wykres QQ i test Andersona-Darlinga wskazuj¹, ¿e rozk³ad cechy \emph{wind} nie jest rozk³adem normalnym.
+
+
+
+\subsection{Cecha \emph{wind\_comp}}
+
+\includegraphics{Szablon-wind_comp}
+\begin{Schunk}
+\begin{Soutput}
+     Cecha Minimum Maksimum   Œrednia Wariancja Odch._stand.
+ wind_comp   -49.7     43.5 -1.311904  80.30611     8.961368
+\end{Soutput}
+\begin{Soutput}
+     Cecha    Skoœnoœæ  Kurtoza Kw_pierwszy Mediana Kw_trzeci
+ wind_comp -0.08047566 4.022278        -6.7      -1       4.1
+\end{Soutput}
+\begin{Soutput}
+     Cecha CI_mean_start CI_mean_end CI_var_start CI_var_end
+ wind_comp     -1.392739   -1.231068     79.29144   81.34048
+\end{Soutput}
+\end{Schunk}
+Wartoœci przeliczników za wiatr zawieraj¹ siê w przedziale od -49.7 do 43.5, œrednia wartoœæ wynosi  -1.311904, wariancja 80.30611, a odchylenie standardowe 8.961368.
+Skoœnoœæ przyjmuje wartoœæ ujemn¹, z czego wynika, ¿e rozk³ad ten jest lewostronnie skoœny.
+Kurtoza > 3, zatem uk³ad jest leptokurtyczny.
+
+
+\includegraphics{Szablon-wind_comp_qq}
+\begin{Schunk}
+\begin{Soutput}
+	Anderson-Darling normality test
+
+data:  results$wind_comp
+A = 92.818, p-value < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Wykres QQ i test Andersona-Darlinga wskazuj¹, ¿e rozk³ad cechy \emph{wind\_comp} nie jest rozk³adem normalnym.
+
+
+\subsection{Cecha \emph{gate\_points}}
+
+\includegraphics{Szablon-gate_points}
+\begin{Schunk}
+\begin{Soutput}
+       Cecha Minimum Maksimum   Œrednia Wariancja Odch._stand.
+ gate_points   -33.2     48.2 0.2630737    13.068     3.614969
+\end{Soutput}
+\begin{Soutput}
+       Cecha    Skoœnoœæ  Kurtoza Kw_pierwszy Mediana Kw_trzeci
+ gate_points -0.04109729 18.79931           0       0         0
+\end{Soutput}
+\begin{Soutput}
+       Cecha CI_mean_start CI_mean_end CI_var_start CI_var_end
+ gate_points     0.2304651   0.2956824     12.90288   13.23632
+\end{Soutput}
+\end{Schunk}
+Wartoœci zawieraj¹ siê w przedziale od -33.2 do 48.2, œrednia wartoœæ wynosi  0.2630737, wariancja 13.068, a odchylenie standardowe 3.614969.
+Skoœnoœæ przyjmuje wartoœæ ujemn¹, z czego wynika, ¿e rozk³ad ten jest lewostronnie skoœny.
+Kurtoza przyjmuje wartoœæ > 3, zatem uk³ad jest leptokurtyczny.
+
+
+\includegraphics{Szablon-gate_points_qq}
+\begin{Schunk}
+\begin{Soutput}
+	Anderson-Darling normality test
+
+data:  results$gate_points
+A = 8848.1, p-value < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Wykres QQ i test Andersona-Darlinga wskazuj¹, ¿e rozk³ad cechy \emph{gate\_points} nie jest rozk³adem normalnym.
+
+
+\section{Analiza zale¿noœci miêdzy poszczególnymi cechami}
+
+\begin{Schunk}
+\begin{Soutput}
+                points      speed        dist dist_points note_points
+points      476.258150 13.6984578 197.9925355  353.923873 51.34117411
+speed        13.698458  4.6437920   5.2276392    3.507518  0.58222583
+dist        197.992535  5.2276392 112.3412681  178.662643 23.79680611
+dist_points 353.923873  3.5075179 178.6626434  323.402525 42.67289099
+note_points  51.341174  0.5822258  23.7968061   42.672891  9.58094600
+gate          4.433529  6.4441625   1.2735707   -5.062547 -0.65759710
+wind         -5.567788 -0.9705961   0.3713245    1.191298  0.06402488
+wind_comp    59.698044 10.6897257  -5.3270510  -14.827078 -0.89118361
+gate_points  12.367566 -1.0625004   1.5119713    3.816821  0.27979139
+                  gate        wind   wind_comp gate_points
+points       4.4335294 -5.56778768  59.6980438  12.3675657
+speed        6.4441625 -0.97059609  10.6897257  -1.0625004
+dist         1.2735707  0.37132451  -5.3270510   1.5119713
+dist_points -5.0625465  1.19129803 -14.8270785   3.8168209
+note_points -0.6575971  0.06402488  -0.8911836   0.2797914
+gate        28.1665983 -1.01791394  11.9677025  -1.7979210
+wind        -1.0179139  0.66792604  -7.2690177   0.4367199
+wind_comp   11.9677025 -7.26901765  80.3061114  -4.7930868
+gate_points -1.7979210  0.43671986  -4.7930868  13.0679984
+\end{Soutput}
+\begin{Soutput}
+                 points       speed        dist dist_points note_points
+points       1.00000000  0.29128229  0.85596882  0.90181394  0.76004690
+speed        0.29128229  1.00000000  0.22887564  0.09050901  0.08728727
+dist         0.85596882  0.22887564  1.00000000  0.93732973  0.72534532
+dist_points  0.90181394  0.09050901  0.93732973  1.00000000  0.76661298
+note_points  0.76004690  0.08728727  0.72534532  0.76661298  1.00000000
+gate         0.03827905  0.56345976  0.02264051 -0.05304325 -0.04003027
+wind        -0.31217439 -0.55110959  0.04286667  0.08105588  0.02530931
+wind_comp    0.30525627  0.55354876 -0.05608451 -0.09200461 -0.03212837
+gate_points  0.15676838 -0.13639177  0.03946111  0.05871182  0.02500493
+                   gate        wind   wind_comp gate_points
+points       0.03827905 -0.31217439  0.30525627  0.15676838
+speed        0.56345976 -0.55110959  0.55354876 -0.13639177
+dist         0.02264051  0.04286667 -0.05608451  0.03946111
+dist_points -0.05304325  0.08105588 -0.09200461  0.05871182
+note_points -0.04003027  0.02530931 -0.03212837  0.02500493
+gate         1.00000000 -0.23468194  0.25163398 -0.09371279
+wind        -0.23468194  1.00000000 -0.99251536  0.14782035
+wind_comp    0.25163398 -0.99251536  1.00000000 -0.14795732
+gate_points -0.09371279  0.14782035 -0.14795732  1.00000000
+\end{Soutput}
+\end{Schunk}
+\includegraphics{Szablon-corrplot}
+
+Analizuj¹c powy¿sze dane, w oczy rzuca siê silna korelacja ujemna pomiêdzy cechami \emph{wind }oraz \emph{wind\_comp}. Innymi korelacjami, na które warto zwróciæ uwagê, to te pomiêdzy \emph{speed} oraz\emph{ wind}, a tak¿e \emph{note\_points} oraz \emph{dist}.
+\noindent Mimo widocznych korelacji miêdzy \emph{note\_points} oraz \emph{points}, \emph{dist\_points} oraz \emph{points} a równie¿ \emph{points} i \emph{dist}, decydujê siê nie badaæ tych danych, ze wzglêdu na oczywistoœæ ich korelacji - jako g³ówne sk³adowe/wartoœæ przelicznika logicznym jest znaczny wp³yw na wartoœæ tej drugiej, a analizowana przeze mnie korelacja \emph{wind} oraz \emph{wind\_comp} wystarczy na zaprezentowanie modelowego przyk³adu zgodnoœci rozk³adów.
+
+
+\subsection{Analiza zgodnoœci \emph{wind} i \emph{wind\_comp}}
+
+Zacznijmy od wygenerowania wykresu zale¿noœci tych dwóch cech:
+
+\includegraphics{Szablon-wind_cor_plot}
+
+Na podstawie wykresu widaæ siln¹ zale¿noœæ liniow¹, zatem mo¿na przyst¹piæ do analizy regresji liniowej.
+
+\begin{Schunk}
+\begin{Soutput}
+Call:
+lm(formula = results$wind_comp ~ results$wind)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-4.9040 -0.5059 -0.3116  0.3880  9.9677 
+
+Coefficients:
+               Estimate Std. Error t value Pr(>|t|)    
+(Intercept)    0.523513   0.005143   101.8   <2e-16 ***
+results$wind -10.882968   0.006163 -1765.9   <2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 1.094 on 47211 degrees of freedom
+Multiple R-squared:  0.9851,	Adjusted R-squared:  0.9851 
+F-statistic: 3.118e+06 on 1 and 47211 DF,  p-value: < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Wartoœæ wspó³czynnika $R^{2}$ wynosi 0.9851, co œwiadczy o bardzo wysokim poziomie dopasowania. Wspó³czynnik p-value potwierdza siln¹ zale¿noœæ miêdzy zmiennymi. 
+
+\subsection{Analiza zgodnoœci  \emph{note\_points} i \emph{dist}}
+
+Zacznijmy od wygenerowania wykresu zale¿noœci tych dwóch cech:
+
+\includegraphics{Szablon-dist_notepoints_plot}
+
+Na wykresie mo¿na zauwa¿yæ zale¿noœæ liniow¹, zatem przystêpujê do analizy regresji liniowej.
+
+\begin{Schunk}
+\begin{Soutput}
+Call:
+lm(formula = results$note_points ~ results$dist)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-33.798  -0.798   0.172   1.113  10.185 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  2.620e+01  1.128e-01   232.3   <2e-16 ***
+results$dist 2.118e-01  9.252e-04   228.9   <2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 2.131 on 47211 degrees of freedom
+Multiple R-squared:  0.5261,	Adjusted R-squared:  0.5261 
+F-statistic: 5.242e+04 on 1 and 47211 DF,  p-value: < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Stosunkowo niska wartoœæ $R^{2}$  = 0.5261 œwiadczy o nieszczególnie wysokim poziomie dopasowania. Mimo tego, wartoœæ p-value sugeruje o silnej relacji miêdzy tymi cechami.
+
+
+\subsection{Analiza zgodnoœci \emph{speed} i \emph{wind}}
+
+\includegraphics{Szablon-wind_speed_plot}
+
+Zauwa¿alna na wykresie jest zale¿noœæ liniowa miêdzy cechami, zatem mo¿na przyst¹piæ do analizy regresji liniowej.
+
+\begin{Schunk}
+\begin{Soutput}
+Call:
+lm(formula = results$speed ~ results$wind)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-8.3660 -1.1425  0.0347  1.1735  7.1146 
+
+Coefficients:
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  90.79834    0.00845 10745.4   <2e-16 ***
+results$wind -1.45315    0.01013  -143.5   <2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 1.798 on 47211 degrees of freedom
+Multiple R-squared:  0.3037,	Adjusted R-squared:  0.3037 
+F-statistic: 2.059e+04 on 1 and 47211 DF,  p-value: < 2.2e-16
+\end{Soutput}
+\end{Schunk}
+
+Niska wartoœæ wspó³czynnika $R^{2}$  = 0.3037 œwiadczy o niewysokim poziomie dopasowania, natomiast niska wartoœæ p-value sugeruje, ¿e istnieje relacja miêdzy tymi cechami.
+
+
+\section{Wnioski}
+  \begin{itemize}
+  \item Cechy \emph{speed} oraz \emph{gate} na pierwszy rzut oka mog³oby siê wydawaæ, ¿e nale¿¹ do rozk³adu normalnego, w¹tpliwoœci rozwiewa natomiast test normalnoœci, który w przypadku obu cech zaprzecza tej hipotezie.
+  \item Cechy \emph{wind} oraz \emph{wind\_comp} s¹ silnie zale¿ne od siebie - jest to wniosek, którego nale¿a³o siê spodziewaæ, natomiast œwiadczy o poprawnoœci danych oraz analizy. Dok³adny sposób przeliczania wartoœci wiatru na punkty nie jest publicznie udostêpniony, dziêki analizie danych mo¿na natomiast wnioskowaæ, ¿e musi byæ on zbli¿ony do liniowego.
+  \item Wystêpuje pewne, aczkolwiek nieszczególnie silne zjawisko korelacji miêdzy cechami \emph{note\_points} oraz \emph{dist} - mo¿na zatem wnioskowaæ, ¿e sêdziowie maj¹ tendencjê do lepszego punktowania skoków d³u¿szych, mimo ¿e wedle regu³, d³ugoœæ skoku nie powinna wp³ywaæ na jego ocenê techniczn¹. 
+  \item Istnieje równie¿ korelacja miêdzy wartoœciami cechy \emph{wind} oraz \emph{speed} - choæ niewielka, to pokazuje, ¿e wiatr ma wp³yw nie tylko na kszta³towanie toru lotu zawodnika, ale wp³ywa te¿ na niego na rozbiegu.
+  \item Dziwiæ mo¿e natomiast niemal¿e ca³kowity brak korelacji miêdzy cechami \emph{dist} oraz \emph{wind} - sugeruje to, ¿e kierunek i si³a wiatru nie maj¹ wp³ywu na d³ugoœæ oddawanych skoków, czemu zaprzeczaj¹ zarówno luŸne obserwacje kibiców podczas zawodów, a tak¿e system rekompensaty punktowej za warunki wietrzne, który wprowadzony zosta³ przecie¿ nie bez powodu. Byæ mo¿e jest to kwestia doboru danych (nale¿a³oby braæ wyniki oscyluj¹ce tylko w okreœlonym, wê¿szym przedziale odleg³oœci), natomiast jest to doœæ zaskakuj¹ca obserwacja.
+  \end{itemize}
+
+\end{document}
